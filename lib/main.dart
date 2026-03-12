@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,9 +40,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
     databaseEnabled: true,
     useHybridComposition: true,
     allowsInlineMediaPlayback: true,
-    mediaPlaybackRequiresUserGesture: false,
     userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
   );
+
+  Future<void> _saveBase64Image(String dataUrl, String filename) async {
+    try {
+      final base64Str = dataUrl.split(',').last;
+      final bytes = base64Decode(base64Str);
+      final dir = Directory('/storage/emulated/0/Download');
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final file = File('${dir.path}/$filename');
+      await file.writeAsBytes(bytes);
+    } catch (e) {
+      debugPrint('Save error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +68,35 @@ class _WebViewScreenState extends State<WebViewScreen> {
           initialSettings: _settings,
           onWebViewCreated: (controller) {
             _controller = controller;
+
+            // JavaScript bridge for receipt downloads
+            controller.addJavaScriptHandler(
+              handlerName: 'downloadReceipt',
+              callback: (args) async {
+                if (args.isNotEmpty) {
+                  final dataUrl = args[0].toString();
+                  final filename = args.length > 1
+                      ? args[1].toString()
+                      : 'kavopay_receipt.png';
+                  await _saveBase64Image(dataUrl, filename);
+                }
+              },
+            );
+          },
+          onLoadStop: (controller, url) async {
+            // Inject JS to intercept anchor downloads
+            await controller.evaluateJavascript(source: '''
+              (function(){
+                const orig = HTMLAnchorElement.prototype.click;
+                HTMLAnchorElement.prototype.click = function() {
+                  if (this.download && this.href && this.href.startsWith('data:')) {
+                    window.flutter_inappwebview.callHandler('downloadReceipt', this.href, this.download);
+                    return;
+                  }
+                  orig.call(this);
+                };
+              })();
+            ''');
           },
           shouldOverrideUrlLoading: (controller, action) async {
             final url = action.request.url.toString();
