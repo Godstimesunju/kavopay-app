@@ -1,0 +1,28 @@
+name: kavopay
+description: Kavopay Mobile App
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.4.2
+  webview_flutter_android: ^3.12.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
+
+flutter_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#071427"
+  adaptive_icon_foreground: "assets/icon.png"
